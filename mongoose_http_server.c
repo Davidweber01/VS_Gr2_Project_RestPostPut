@@ -15,6 +15,9 @@ typedef struct
 
 #define MAX_USERS 100
 
+// Define a format string for the JSON representation of a User
+#define USER_JSON_FORMAT "{\n  \"id\": %d,\n  \"name\": \"%s\",\n  \"email\": \"%s\"\n}"
+
 static User users_db[MAX_USERS];
 static int users_count = 0;
 
@@ -56,6 +59,35 @@ void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
                 // Free the allocated buffer
                 free(json_buffer);
             }
+            else
+            {
+                int user_id = extract_user_id(hm->uri);
+                if (user_id >= 0)
+                {
+                    User *user = get_user_by_id(user_id);
+                    if (user != NULL)
+                    {
+                        char *json_buffer = user_to_json(user);
+
+                        mg_send_response_line(
+                                nc, 200, "Content-Type: application/json\r\n"
+                                "Connection: close");
+                        mg_printf(nc, "\r\n%s\r\n", json_buffer);
+
+                        // Free the allocated buffer
+                        free(json_buffer);
+                    }
+                    else
+                    {
+                        mg_send_response_line(nc, 400,
+                                              "Content-Type: text/html\r\n"
+                                              "Connection: close");
+                        mg_printf(nc,
+                                  "\r\n<h1>No User found for this ID.</h1>\r\n",
+                                  addr, (int) hm->uri.len, hm->uri.p);
+                    }
+                }
+            }
         }
         else if (mg_vcmp(&hm->method, "POST") == 0)
         {
@@ -80,11 +112,10 @@ void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
                                           "Connection: close");
                     mg_printf(nc, "\r\n%s\r\n", user_json);
 
-                    //free(user_json);
                 }
                 else
                 {
-                    mg_send_response_line(nc, 200, "Content-Type: text/html\r\n"
+                    mg_send_response_line(nc, 400, "Content-Type: text/html\r\n"
                                           "Connection: close");
                     mg_printf(nc, "\r\n<h1>Error creating new User.</h1>\r\n",
                               addr, (int) hm->uri.len, hm->uri.p);
@@ -116,7 +147,7 @@ void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
                 }
                 else
                 {
-                    mg_send_response_line(nc, 200, "Content-Type: text/html\r\n"
+                    mg_send_response_line(nc, 400, "Content-Type: text/html\r\n"
                                           "Connection: close");
                     mg_printf(nc, "\r\n<h1>Error updating new User.</h1>\r\n",
                               addr, (int) hm->uri.len, hm->uri.p);
@@ -124,7 +155,7 @@ void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
             }
             else
             {
-                mg_send_response_line(nc, 200, "Content-Type: text/html\r\n"
+                mg_send_response_line(nc, 400, "Content-Type: text/html\r\n"
                                       "Connection: close");
                 mg_printf(nc, "\r\n<h1>Invalid User ID.</h1>\r\n", addr,
                           (int) hm->uri.len, hm->uri.p);
@@ -257,21 +288,37 @@ int create_user(User new_user)
     return 0;
 }
 
-char* users_to_json(const User *users, int count)
+char* user_to_json(const User *user)
 {
-    // Calculate buffer size
-    size_t buffer_size = 2; // For the opening and closing brackets
-    for (int i = 0; i < count; ++i)
+    // Calculate the required buffer size
+    int len = snprintf(NULL, 0, USER_JSON_FORMAT, user->id, user->name,
+                       user->email);
+
+    if (len < 0)
     {
-        // Estimating size for each user's JSON representation
-        buffer_size += 100 + strlen(users[i].name) + strlen(users[i].email);
-        if (i < count - 1)
-        {
-            buffer_size += 2; // For the comma and newline
-        }
+        fprintf(stderr, "Error calculating JSON length\n");
+        return NULL;
     }
 
-    // Allocate buffer
+    // Allocate buffer with the exact required size (+1 for null terminator)
+    char *buffer = (char*) malloc(len + 1);
+    if (buffer == NULL)
+    {
+        fprintf(stderr, "Failed to allocate memory for buffer\n");
+        return NULL;
+    }
+
+    // Write JSON data for one user
+    snprintf(buffer, len + 1, USER_JSON_FORMAT, user->id, user->name,
+             user->email);
+
+    return buffer;
+}
+
+char* users_to_json(const User *users, int count)
+{
+    // Estimate initial buffer size
+    size_t buffer_size = 1024; // Start with a reasonable size
     char *buffer = (char*) malloc(buffer_size);
     if (buffer == NULL)
     {
@@ -279,25 +326,51 @@ char* users_to_json(const User *users, int count)
         return NULL;
     }
 
-    // Write JSON data to buffer
-    char *ptr = buffer;
-    ptr += sprintf(ptr, "[\n");
+    // Initialize buffer
+    buffer[0] = '\0';
+    size_t len = 0;
+
+    // Write opening bracket
+    len += snprintf(buffer + len, buffer_size - len, "[\n");
+
     for (int i = 0; i < count; ++i)
     {
-        ptr += sprintf(ptr, "  {\n");
-        ptr += sprintf(ptr, "    \"id\": %d,\n", users[i].id);
-        ptr += sprintf(ptr, "    \"name\": \"%s\",\n", users[i].name);
-        ptr += sprintf(ptr, "    \"email\": \"%s\"\n", users[i].email);
+        char *user_json = user_to_json(&users[i]);
+        if (user_json == NULL)
+        {
+            free(buffer);
+            return NULL;
+        }
+
+        size_t user_json_len = strlen(user_json);
+        if (len + user_json_len + 3 > buffer_size)
+        { // 3 for ",\n\0"
+            buffer_size = len + user_json_len + 3;
+            buffer = (char*) realloc(buffer, buffer_size);
+            if (buffer == NULL)
+            {
+                fprintf(stderr, "Failed to reallocate memory for buffer\n");
+                free(user_json);
+                return NULL;
+            }
+        }
+
+        len += snprintf(buffer + len, buffer_size - len, "  %s", user_json);
+        free(user_json);
+
         if (i < count - 1)
         {
-            ptr += sprintf(ptr, "  },\n");
+            len += snprintf(buffer + len, buffer_size - len, ",\n");
         }
         else
         {
-            ptr += sprintf(ptr, "  }\n");
+            len += snprintf(buffer + len, buffer_size - len, "\n");
         }
     }
-    ptr += sprintf(ptr, "]\n");
+
+    // Write closing bracket
+    len += snprintf(buffer + len, buffer_size - len, "]\n");
 
     return buffer;
 }
+

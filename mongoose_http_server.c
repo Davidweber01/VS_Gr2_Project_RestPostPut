@@ -1,5 +1,4 @@
-#include "mongoose_task.h"
-
+#include <mongoose_http_server.h>
 #include "mongoose.h"
 
 #define SYSTICKHZ 100
@@ -165,20 +164,20 @@ void parse_user_from_request(struct http_message *hm, User *user)
     memcpy(buf, hm->body.p, hm->body.len);
     buf[hm->body.len] = '\0'; // Null-terminate the JSON string
 
-// Extract id
+    // Extract id
     if (mjson_get_number(buf, hm->body.len, "$.id", &user->id) <= 0)
     {
         user->id = -1; // Default value if not found
     }
 
-// Extract name
+    // Extract name
     if (mjson_get_string(buf, hm->body.len, "$.name", user->name,
                          sizeof(user->name)) <= 0)
     {
         user->name[0] = '\0'; // Default value if not found
     }
 
-// Extract email
+    // Extract email
     if (mjson_get_string(buf, hm->body.len, "$.email", user->email,
                          sizeof(user->email)) <= 0)
     {
@@ -215,14 +214,22 @@ User* get_user_by_id(int id)
 int extract_user_id(const char *uri)
 {
     // Find the end of the URI segment
-    const char *end = strchr(uri, '\r\n');
+    const char *end = strchr(uri, ' ');
     if (end == NULL)
     {
         return -1; // Handle the error appropriately
     }
 
     // Locate the last '/' character in the URI
-    const char *id_str = strrchr(uri, '/');
+    const char *id_str = NULL;
+    for (const char *p = uri; p < end; ++p)
+    {
+        if (*p == '/')
+        {
+            id_str = p;
+        }
+    }
+
     if (id_str == NULL || id_str >= end)
     {
         return -1; // Handle the error appropriately
@@ -252,7 +259,7 @@ int create_user(User new_user)
 
 char* users_to_json(const User *users, int count)
 {
-// Calculate buffer size
+    // Calculate buffer size
     size_t buffer_size = 2; // For the opening and closing brackets
     for (int i = 0; i < count; ++i)
     {
@@ -264,7 +271,7 @@ char* users_to_json(const User *users, int count)
         }
     }
 
-// Allocate buffer
+    // Allocate buffer
     char *buffer = (char*) malloc(buffer_size);
     if (buffer == NULL)
     {
@@ -272,7 +279,7 @@ char* users_to_json(const User *users, int count)
         return NULL;
     }
 
-// Write JSON data to buffer
+    // Write JSON data to buffer
     char *ptr = buffer;
     ptr += sprintf(ptr, "[\n");
     for (int i = 0; i < count; ++i)

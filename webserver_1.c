@@ -4,6 +4,7 @@
 //
 //
 //*****************************************************************************
+#include <mongoose_http_server.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
@@ -25,7 +26,6 @@
 #include "httpserver_raw/httpd.h"
 
 #include "userlib/io.h"
-#include "mongoose_task.h"
 
 // The current IP address.
 uint32_t g_ui32IPAddress;

@@ -87,6 +87,13 @@ void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
                                   addr, (int) hm->uri.len, hm->uri.p);
                     }
                 }
+                else
+                {
+                    mg_send_response_line(nc, 400, "Content-Type: text/html\r\n"
+                                          "Connection: close");
+                    mg_printf(nc, "\r\n<h1>No User found for this ID.</h1>\r\n",
+                              addr, (int) hm->uri.len, hm->uri.p);
+                }
             }
         }
         else if (mg_vcmp(&hm->method, "POST") == 0)
@@ -120,6 +127,13 @@ void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
                     mg_printf(nc, "\r\n<h1>Error creating new User.</h1>\r\n",
                               addr, (int) hm->uri.len, hm->uri.p);
                 }
+            }
+            else
+            {
+                mg_send_response_line(nc, 400, "Content-Type: text/html\r\n"
+                                      "Connection: close");
+                mg_printf(nc, "\r\n<h1>This URI is not supported.</h1>\r\n",
+                          addr, (int) hm->uri.len, hm->uri.p);
             }
         }
         else if (mg_vcmp(&hm->method, "PUT") == 0)
@@ -165,11 +179,11 @@ void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
         else
         {
             UARTprintf("%p: HTTP request\r\n", nc);
-            mg_send_response_line(nc, 200, "Content-Type: text/html\r\n"
+            mg_send_response_line(nc, 400, "Content-Type: text/html\r\n"
                                   "Connection: close");
             mg_printf(nc, "\r\n<h1>Hello, %s!</h1>\r\n"
-                      "You asked for %.*s\r\n",
-                      addr, (int) hm->uri.len, hm->uri.p);
+                      "This is not supported.",
+                      addr, (int) hm->uri.len);
         }
         nc->flags |= MG_F_SEND_AND_CLOSE;
 

@@ -1,5 +1,8 @@
 #include <mongoose_http_server.h>
 #include "mongoose.h"
+#include "utils/uartstdio.h"
+#include "utils/ustdlib.h"
+#include "mjson/mjson.h"
 
 #define SYSTICKHZ 100
 #define SYSTICKMS (1000 / SYSTICKHZ)
@@ -21,10 +24,18 @@ typedef struct
 static User users_db[MAX_USERS];
 static int users_count = 0;
 
+User* get_user_by_id(int id);
+void parse_user_from_request(struct http_message *hm, User *user);
+int create_user(User new_user);
+void parse_user_from_request(struct http_message *hm, User *user);
+int update_user(int id, User updated_user);
+char* user_to_json(const User *user);
+char* users_to_json(const User *users, int count);
+int extract_user_id(const char *uri);
+
 // The main Mongoose event handler.
 void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
 {
-    static int led_value = 0;
     if (ev == MG_EV_POLL)
         return;
     // UARTprintf("%p: ev %d\r\n", nc, ev);
@@ -61,7 +72,7 @@ void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
             }
             else
             {
-                int user_id = extract_user_id(hm->uri);
+                int user_id = extract_user_id(hm->uri.p);
                 if (user_id >= 0)
                 {
                     User *user = get_user_by_id(user_id);
@@ -138,7 +149,7 @@ void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
         }
         else if (mg_vcmp(&hm->method, "PUT") == 0)
         {
-            int user_id = extract_user_id(hm->uri);
+            int user_id = extract_user_id(hm->uri.p);
             if (user_id >= 0)
             {
                 User updated_user;
@@ -210,7 +221,7 @@ void parse_user_from_request(struct http_message *hm, User *user)
     buf[hm->body.len] = '\0'; // Null-terminate the JSON string
 
     // Extract id
-    if (mjson_get_number(buf, hm->body.len, "$.id", &user->id) <= 0)
+    if (mjson_get_number(buf, hm->body.len, "$.id", (double*) user->id) <= 0)
     {
         user->id = -1; // Default value if not found
     }

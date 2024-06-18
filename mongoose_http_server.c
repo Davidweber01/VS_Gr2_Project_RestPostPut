@@ -151,7 +151,7 @@ void handle_post_request(struct http_message *hm, struct mg_connection *nc,
         {
             char json_buffer[256];
             usnprintf(json_buffer, sizeof(json_buffer),
-                      "{\"id\": %d, \"name\": \"%s\", \"email\": \"%s\"}",
+            USER_JSON_FORMAT,
                       new_user.id, new_user.name, new_user.email);
 
             send_ok_message(nc, addr, json_buffer);
@@ -184,7 +184,7 @@ void handle_put_request(struct http_message *hm, struct mg_connection *nc,
         {
             char json_buffer[256];
             usnprintf(json_buffer, sizeof(json_buffer),
-                      "{\"id\": %d, \"name\": \"%s\", \"email\": \"%s\"}",
+            USER_JSON_FORMAT,
                       updated_user.id, updated_user.name, updated_user.email);
             send_ok_message(nc, addr, json_buffer);
         }
@@ -228,10 +228,15 @@ void parse_user_from_request(struct http_message *hm, User *user)
     memcpy(buf, hm->body.p, hm->body.len);
     buf[hm->body.len] = '\0'; // Null-terminate the JSON string
 
-    // Extract id
-    if (mjson_get_number(buf, hm->body.len, "$.id", (double*) user->id) <= 0)
+    // Extract id, this will be ignored because the Server designes a unique ID
+    double id_double;
+    if (mjson_get_number(buf, hm->body.len, "$.id", &id_double) <= 0)
     {
         user->id = -1; // Default value if not found
+    }
+    else
+    {
+        user->id = (int) id_double;
     }
 
     // Extract name

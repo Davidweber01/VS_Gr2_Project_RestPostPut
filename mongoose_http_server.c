@@ -32,6 +32,16 @@ int update_user(int id, User updated_user);
 char* user_to_json(const User *user);
 char* users_to_json(const User *users, int count);
 int extract_user_id(const char *uri);
+void handle_get_request(struct http_message *hm, struct mg_connection *nc,
+                        char addr[32]);
+void handle_post_request(struct http_message *hm, struct mg_connection *nc,
+                         char addr[32]);
+void handle_put_request(struct http_message *hm, struct mg_connection *nc,
+                        char addr[32]);
+void send_ok_message(struct mg_connection *nc, char addr[32],
+                     char json_buffer[256]);
+void send_error_message(struct mg_connection *nc, char addr[32],
+                        const char *message);
 
 // The main Mongoose event handler.
 void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
@@ -58,143 +68,20 @@ void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
 
         if (mg_vcmp(&hm->method, "GET") == 0)
         {
-            if (mg_vcmp(&hm->uri, "/users") == 0)
-            {
-                char *json_buffer = users_to_json(users_db, users_count);
+            handle_get_request(hm, nc, addr);
 
-                mg_send_response_line(nc, 200,
-                                      "Content-Type: application/json\r\n"
-                                      "Connection: close");
-                mg_printf(nc, "\r\n%s\r\n", json_buffer);
-
-                // Free the allocated buffer
-                free(json_buffer);
-            }
-            else
-            {
-                int user_id = extract_user_id(hm->uri.p);
-                if (user_id >= 0)
-                {
-                    User *user = get_user_by_id(user_id);
-                    if (user != NULL)
-                    {
-                        char *json_buffer = user_to_json(user);
-
-                        mg_send_response_line(
-                                nc, 200, "Content-Type: application/json\r\n"
-                                "Connection: close");
-                        mg_printf(nc, "\r\n%s\r\n", json_buffer);
-
-                        // Free the allocated buffer
-                        free(json_buffer);
-                    }
-                    else
-                    {
-                        mg_send_response_line(nc, 400,
-                                              "Content-Type: text/html\r\n"
-                                              "Connection: close");
-                        mg_printf(nc,
-                                  "\r\n<h1>No User found for this ID.</h1>\r\n",
-                                  addr, (int) hm->uri.len, hm->uri.p);
-                    }
-                }
-                else
-                {
-                    mg_send_response_line(nc, 400, "Content-Type: text/html\r\n"
-                                          "Connection: close");
-                    mg_printf(nc, "\r\n<h1>No User found for this ID.</h1>\r\n",
-                              addr, (int) hm->uri.len, hm->uri.p);
-                }
-            }
         }
         else if (mg_vcmp(&hm->method, "POST") == 0)
         {
-            if (mg_vcmp(&hm->uri, "/users") == 0)
-            {
-                User new_user;
-                parse_user_from_request(hm, &new_user);
-
-                // Ensure the ID is unique
-                new_user.id = ++users_count;
-
-                if (create_user(new_user))
-                {
-                    char user_json[256];
-                    usnprintf(
-                            user_json, sizeof(user_json),
-                            "{\"id\": %d, \"name\": \"%s\", \"email\": \"%s\"}",
-                            new_user.id, new_user.name, new_user.email);
-
-                    mg_send_response_line(nc, 200,
-                                          "Content-Type: application/json\r\n"
-                                          "Connection: close");
-                    mg_printf(nc, "\r\n%s\r\n", user_json);
-
-                }
-                else
-                {
-                    mg_send_response_line(nc, 400, "Content-Type: text/html\r\n"
-                                          "Connection: close");
-                    mg_printf(nc, "\r\n<h1>Error creating new User.</h1>\r\n",
-                              addr, (int) hm->uri.len, hm->uri.p);
-                }
-            }
-            else
-            {
-                mg_send_response_line(nc, 400, "Content-Type: text/html\r\n"
-                                      "Connection: close");
-                mg_printf(nc, "\r\n<h1>This URI is not supported.</h1>\r\n",
-                          addr, (int) hm->uri.len, hm->uri.p);
-            }
+            handle_post_request(hm, nc, addr);
         }
         else if (mg_vcmp(&hm->method, "PUT") == 0)
         {
-            int user_id = extract_user_id(hm->uri.p);
-            if (user_id >= 0)
-            {
-                User updated_user;
-                parse_user_from_request(hm, &updated_user);
-
-                // Ensure the ID matches the URI ID
-                updated_user.id = user_id;
-                if (update_user(user_id, updated_user))
-                {
-                    char user_json[256];
-                    usnprintf(
-                            user_json, sizeof(user_json),
-                            "{\"id\": %d, \"name\": \"%s\", \"email\": \"%s\"}",
-                            updated_user.id, updated_user.name,
-                            updated_user.email);
-                    mg_send_response_line(nc, 200,
-                                          "Content-Type: application/json\r\n"
-                                          "Connection: close");
-                    mg_printf(nc, "\r\n%s\r\n", user_json);
-                }
-                else
-                {
-                    mg_send_response_line(nc, 400, "Content-Type: text/html\r\n"
-                                          "Connection: close");
-                    mg_printf(nc, "\r\n<h1>Error updating new User.</h1>\r\n",
-                              addr, (int) hm->uri.len, hm->uri.p);
-                }
-            }
-            else
-            {
-                mg_send_response_line(nc, 400, "Content-Type: text/html\r\n"
-                                      "Connection: close");
-                mg_printf(nc, "\r\n<h1>Invalid User ID.</h1>\r\n", addr,
-                          (int) hm->uri.len, hm->uri.p);
-            }
-
+            handle_put_request(hm, nc, addr);
         }
         else
         {
-            UARTprintf("%p: HTTP request\r\n", nc);
-            mg_send_response_line(nc, 400, "Content-Type: text/html\r\n"
-                                  "Connection: close");
-            mg_printf(nc, "\r\n<h1>Hello, %s!</h1>\r\n"
-                      "This is not supported.",
-                      addr, (int) hm->uri.len);
+            send_error_message(nc, addr, "\r\nThis is not supported.\r\n");
         }
         nc->flags |= MG_F_SEND_AND_CLOSE;
 
@@ -208,6 +95,128 @@ void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
     }
 }
 
+void handle_get_request(struct http_message *hm, struct mg_connection *nc,
+                        char addr[32])
+{
+    if (mg_vcmp(&hm->uri, "/users") == 0)
+    {
+        char *json_buffer = users_to_json(users_db, users_count);
+
+        send_ok_message(nc, addr, json_buffer);
+
+        // Free the allocated buffer
+        free(json_buffer);
+    }
+    else
+    {
+        int user_id = extract_user_id(hm->uri.p);
+        if (user_id >= 0)
+        {
+            User *user = get_user_by_id(user_id);
+            if (user != NULL)
+            {
+                char *json_buffer = user_to_json(user);
+
+                send_ok_message(nc, addr, json_buffer);
+
+                // Free the allocated buffer
+                free(json_buffer);
+            }
+            else
+            {
+                send_error_message(
+                        nc, addr,
+                        "\r\n<h1>No User found for this ID.</h1>\r\n");
+            }
+        }
+        else
+        {
+            send_error_message(nc, addr,
+                               "\r\n<h1>No User found for this ID.</h1>\r\n");
+        }
+    }
+}
+
+void handle_post_request(struct http_message *hm, struct mg_connection *nc,
+                         char addr[32])
+{
+    if (mg_vcmp(&hm->uri, "/users") == 0)
+    {
+        User new_user;
+        parse_user_from_request(hm, &new_user);
+
+        // Ensure the ID is unique
+        new_user.id = ++users_count;
+
+        if (create_user(new_user))
+        {
+            char json_buffer[256];
+            usnprintf(json_buffer, sizeof(json_buffer),
+                      "{\"id\": %d, \"name\": \"%s\", \"email\": \"%s\"}",
+                      new_user.id, new_user.name, new_user.email);
+
+            send_ok_message(nc, addr, json_buffer);
+
+        }
+        else
+        {
+            send_error_message(nc, addr,
+                               "\r\n<h1>Error creating new User.</h1>\r\n");
+        }
+    }
+    else
+    {
+        send_error_message(nc, addr,
+                           "\r\n<h1>This URI is not supported.</h1>\r\n");
+    }
+}
+
+void handle_put_request(struct http_message *hm, struct mg_connection *nc,
+                        char addr[32])
+{
+    int user_id = extract_user_id(hm->uri.p);
+    if (user_id >= 0)
+    {
+        User updated_user;
+        parse_user_from_request(hm, &updated_user);
+
+        // Ensure the ID matches the URI ID
+        updated_user.id = user_id;
+        if (update_user(user_id, updated_user))
+        {
+            char json_buffer[256];
+            usnprintf(json_buffer, sizeof(json_buffer),
+                      "{\"id\": %d, \"name\": \"%s\", \"email\": \"%s\"}",
+                      updated_user.id, updated_user.name, updated_user.email);
+            send_ok_message(nc, addr, json_buffer);
+        }
+        else
+        {
+            send_error_message(nc, addr,
+                               "\r\n<h1>Error updating new User.</h1>\r\n");
+        }
+    }
+    else
+    {
+        send_error_message(nc, addr, "\r\n<h1>Invalid User ID.</h1>\r\n");
+    }
+}
+
+void send_ok_message(struct mg_connection *nc, char addr[32],
+                     char json_buffer[256])
+{
+    mg_send_response_line(nc, 200, "Content-Type: application/json\r\n"
+                          "Connection: close");
+    mg_printf(nc, "\r\n%s\r\n", json_buffer);
+}
+
+void send_error_message(struct mg_connection *nc, char addr[32],
+                        const char *message)
+{
+    mg_send_response_line(nc, 400, "Content-Type: text/html\r\n"
+                          "Connection: close");
+    mg_printf(nc, message);
+}
 void parse_user_from_request(struct http_message *hm, User *user)
 {
     char *buf = (char*) calloc(hm->body.len + 1, sizeof(char));

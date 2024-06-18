@@ -181,7 +181,7 @@ int main(void)
     // Clear the terminal and print a banner.
     //
     UARTprintf("\033[2J\033[H");
-    UARTprintf("Simple embedded webserver - FreeRTOS\n\n");
+    UARTprintf("Simple embedded Restfull webserver - FreeRTOS\n\n");
 
     // Configure the hardware MAC address for Ethernet Controller filtering of
     // incoming packets.  The MAC address will be stored in the non-volatile

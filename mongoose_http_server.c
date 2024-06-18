@@ -48,7 +48,7 @@ void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
 {
     if (ev == MG_EV_POLL)
         return;
-    // UARTprintf("%p: ev %d\r\n", nc, ev);
+
     switch (ev)
     {
     case MG_EV_ACCEPT:
@@ -69,7 +69,6 @@ void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
         if (mg_vcmp(&hm->method, "GET") == 0)
         {
             handle_get_request(hm, nc, addr);
-
         }
         else if (mg_vcmp(&hm->method, "POST") == 0)
         {
@@ -156,7 +155,6 @@ void handle_post_request(struct http_message *hm, struct mg_connection *nc,
                       new_user.id, new_user.name, new_user.email);
 
             send_ok_message(nc, addr, json_buffer);
-
         }
         else
         {
@@ -217,6 +215,7 @@ void send_error_message(struct mg_connection *nc, char addr[32],
                           "Connection: close");
     mg_printf(nc, message);
 }
+
 void parse_user_from_request(struct http_message *hm, User *user)
 {
     char *buf = (char*) calloc(hm->body.len + 1, sizeof(char));
@@ -407,4 +406,3 @@ char* users_to_json(const User *users, int count)
 
     return buffer;
 }
-

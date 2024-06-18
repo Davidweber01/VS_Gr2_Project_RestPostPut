@@ -95,11 +95,6 @@
 			<type>1</type>
 			<locationURI>SW_ROOT/utils/ustdlib.c</locationURI>
 		</link>
-		<link>
-			<name>third_party/lwip-1.4.1/apps/httpserver_raw/httpd.c</name>
-			<type>1</type>
-			<locationURI>SW_ROOT/third_party/lwip-1.4.1/apps/httpserver_raw/httpd.c</locationURI>
-		</link>
 	</linkedResources>
 	<variableList>
 		<variable>

@@ -19,7 +19,7 @@ typedef struct
 #define MAX_USERS 100
 
 // Define a format string for the JSON representation of a User
-#define USER_JSON_FORMAT "{\n  \"id\": %d,\n  \"name\": \"%s\",\n  \"email\": \"%s\"\n}"
+#define USER_JSON_FORMAT "{\n  \"id\": %i,\n  \"name\": \"%s\",\n  \"email\": \"%s\"\n}"
 
 static User users_db[MAX_USERS];
 static int users_count = 0;
